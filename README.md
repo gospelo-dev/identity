@@ -1,4 +1,4 @@
-[日本語版](README_ja.md)
+[日本語版](https://github.com/gospelo-dev/identity/blob/main/README_ja.md)
 
 # gospelo-identity — Directory-Aware git/gh CLI Identity Guard
 
@@ -107,7 +107,7 @@ See the [CLI Reference](https://github.com/gospelo-dev/identity/blob/main/docs/m
 
 ## Configuration
 
-Example configs are available in [examples/](examples/):
+Example configs are available in [examples/](https://github.com/gospelo-dev/identity/tree/main/examples):
 
 - `config.yml` — basic 2-profile setup with comments
 - `config.minimal.yml` — 1-profile minimal example
@@ -222,18 +222,18 @@ The current directory is outside every profile's `paths` and no `default_profile
 - [Config Format](https://github.com/gospelo-dev/identity/blob/main/docs/manual/en/config-format.md)
 - [Shell Integration](https://github.com/gospelo-dev/identity/blob/main/docs/manual/en/shell-integration.md)
 
-Japanese documentation is available under `docs/manual/ja/` (see [README_ja.md](README_ja.md)).
+Japanese documentation is available under `docs/manual/ja/` (see [README_ja.md](https://github.com/gospelo-dev/identity/blob/main/README_ja.md)).
 
 ## Agent Skills
 
 Auto-protective skills for AI coding agents that run `gospelo-identity check`
 **before** any write-to-remote operation (push / PR / release / package
 publish) and stop the operation on mismatch. See
-[`skills/README.md`](skills/README.md) for an overview.
+[`skills/README.md`](https://github.com/gospelo-dev/identity/blob/main/skills/README.md) for an overview.
 
-- [Claude Code skill](skills/claude/) — drop into `.claude/skills/gospelo-identity-check/`
-- [GitHub Copilot skill](skills/copilot/) — drop into `.github/copilot/skills/gospelo-identity-check/` (path subject to change as Copilot's skill spec evolves)
+- [Claude Code skill](https://github.com/gospelo-dev/identity/tree/main/skills/claude) — drop into `.claude/skills/gospelo-identity-check/`
+- [GitHub Copilot skill](https://github.com/gospelo-dev/identity/tree/main/skills/copilot) — drop into `.github/copilot/skills/gospelo-identity-check/` (path subject to change as Copilot's skill spec evolves)
 
 ## License
 
-MIT — free for commercial use. The `config.yml` you author is yours. See [LICENSE.md](LICENSE.md) for details.
+MIT — free for commercial use. The `config.yml` you author is yours. See [LICENSE.md](https://github.com/gospelo-dev/identity/blob/main/LICENSE.md) for details.

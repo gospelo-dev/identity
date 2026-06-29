@@ -1,4 +1,4 @@
-[English](README.md)
+[English](https://github.com/gospelo-dev/identity/blob/main/README.md)
 
 # gospelo-identity — ディレクトリ連動 git/gh CLI アイデンティティガード
 
@@ -107,7 +107,7 @@ PS1='$(gospelo-identity prompt --format=ps1 --show-mismatch) \w \$ '
 
 ## 設定ファイル
 
-サンプル設定は [examples/](examples/) にあります:
+サンプル設定は [examples/](https://github.com/gospelo-dev/identity/tree/main/examples) にあります:
 
 - `config.yml` — コメント付きの基本 2 profile 構成
 - `config.minimal.yml` — 1 profile のみの最小例
@@ -222,17 +222,17 @@ gh api user --jq .login                        # 実 identity を確認
 - [設定ファイル仕様](https://github.com/gospelo-dev/identity/blob/main/docs/manual/ja/config-format.md)
 - [シェル統合ガイド](https://github.com/gospelo-dev/identity/blob/main/docs/manual/ja/shell-integration.md)
 
-英語マニュアルは [`docs/manual/en/`](https://github.com/gospelo-dev/identity/tree/main/docs/manual/en) にあります（[README.md](README.md) も参照）。
+英語マニュアルは [`docs/manual/en/`](https://github.com/gospelo-dev/identity/tree/main/docs/manual/en) にあります（[README.md](https://github.com/gospelo-dev/identity/blob/main/README.md) も参照）。
 
 ## エージェントスキル
 
 AI コーディングエージェント向けの自動保護スキル。`git push` / PR 作成 / リリース /
 パッケージ公開などの **書き込み系操作の前** に `gospelo-identity check` を自動実行し、
-ミスマッチ時は操作を停止します。詳細は [`skills/README.md`](skills/README.md) を参照。
+ミスマッチ時は操作を停止します。詳細は [`skills/README.md`](https://github.com/gospelo-dev/identity/blob/main/skills/README.md) を参照。
 
-- [Claude Code スキル](skills/claude/) — `.claude/skills/gospelo-identity-check/` 配下に配置
-- [GitHub Copilot スキル](skills/copilot/) — `.github/copilot/skills/gospelo-identity-check/` 配下に配置（Copilot のスキル仕様により変更の可能性あり）
+- [Claude Code スキル](https://github.com/gospelo-dev/identity/tree/main/skills/claude) — `.claude/skills/gospelo-identity-check/` 配下に配置
+- [GitHub Copilot スキル](https://github.com/gospelo-dev/identity/tree/main/skills/copilot) — `.github/copilot/skills/gospelo-identity-check/` 配下に配置（Copilot のスキル仕様により変更の可能性あり）
 
 ## ライセンス
 
-MIT — 商用利用を含め自由に利用できます。ユーザーが作成した `config.yml` の著作権はユーザーに帰属します。詳細は [LICENSE_ja.md](LICENSE_ja.md) を参照。
+MIT — 商用利用を含め自由に利用できます。ユーザーが作成した `config.yml` の著作権はユーザーに帰属します。詳細は [LICENSE_ja.md](https://github.com/gospelo-dev/identity/blob/main/LICENSE_ja.md) を参照。
