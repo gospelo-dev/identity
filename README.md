@@ -58,6 +58,8 @@ PS1='$(gospelo-identity prompt --format=ps1 --show-mismatch) \w \$ '
 | `check` | Compare expected vs actual `git config` and `gh` CLI account |
 | `switch <profile>` | Apply git config + `gh auth switch` for the profile |
 | `prompt` | Shell-prompt helper (`--format=ps1` / `plain` / `color`) |
+| `install-guard` / `uninstall-guard` | Shadow `gh`/`git` on `PATH` to block wrong-identity writes |
+| `install-commit-hook` / `uninstall-commit-hook` | Global `commit-msg` hook that strips `Co-Authored-By` |
 
 See the [CLI Reference](https://github.com/gospelo-dev/identity/blob/main/docs/manual/en/cli-reference.md) for full options and exit codes.
 
@@ -114,6 +116,29 @@ default_profile: oss
 ```
 
 `paths` are glob patterns. `~` is expanded, and `**` matches any number of intermediate directories. The longest matching prefix wins when multiple profiles match.
+
+## Enforcement (optional)
+
+`check` / `switch` are advisory. To actively *block* wrong-identity writes — useful during automation or autonomous agent runs — install the guard:
+
+```bash
+# Shadow `gh` (add `git` with --tools gh,git) with a PATH shim that runs the
+# identity check before every write (gh release/pr/repo create, git push, ...).
+gospelo-identity install-guard --tools gh
+export PATH="$HOME/.gospelo-identity/bin:$PATH"   # add to ~/.zshrc / ~/.bashrc
+```
+
+Now a `gh release create` / `git push` under a matched profile with the wrong active account is **blocked** (exit 1, real binary never runs); read-only commands pass through untouched. Outside any profile, or with no config, the real command always runs — the guard never breaks unrelated work. Per-write status is printed to stderr (silence with `GOSPELO_IDENTITY_QUIET=1`; bypass once with `GOSPELO_IDENTITY_SKIP=1`).
+
+> A PATH shim only catches **name-based** calls; `/usr/bin/git push` bypasses it. It stops *accidental* wrong-identity writes, not an adversarial process — layer an OS sandbox for that.
+
+Separately, strip `Co-Authored-By` trailers from every commit message via a global `commit-msg` hook (it chains to your existing repo hooks):
+
+```bash
+gospelo-identity install-commit-hook
+```
+
+See the [CLI Reference](https://github.com/gospelo-dev/identity/blob/main/docs/manual/en/cli-reference.md#enforcement-guard-ghgit-path-shim) for details and `uninstall-*` commands.
 
 ## Troubleshooting
 

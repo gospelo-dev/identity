@@ -164,3 +164,107 @@ zsh example (requires `setopt PROMPT_SUBST` when used in `PROMPT`):
 setopt PROMPT_SUBST
 PROMPT='%F{yellow}$(gospelo-identity prompt --format=plain --show-mismatch)%f %~ %# '
 ```
+
+---
+
+## Enforcement: guard (gh/git PATH shim)
+
+The guard shadows `gh` (and optionally `git`) on your `PATH` with tiny shim executables. Every call is routed through `gospelo-identity guard`, which lets **read-only** commands through untouched and, for **write / outward-facing** commands (`git push`; `gh release/pr/repo/... create`; mutating `gh api`; etc.), runs the current directory's identity check first — **blocking** the write (non-zero exit, the real binary is never executed) when the active git/gh identity does not match the profile that owns the directory.
+
+Design constraints:
+
+- **Deterministic** — pure pattern logic, never an LLM.
+- **Local** — nothing leaves the machine beyond the `gh api user` call that `check` already makes.
+- **Fail-open outside enforcement** — a write under a matched profile with a mismatched identity is blocked; everywhere else (no config, unreadable config, a directory governed by no profile, or `GOSPELO_IDENTITY_SKIP` set) the real command runs unchanged, so the guard never breaks unrelated work.
+
+Limitation: a `PATH` shim only intercepts **name-based** calls. A command invoked by absolute path (`/usr/bin/git push`) bypasses it. The shim's job is to stop *accidental* wrong-identity writes during automation / agent runs — not to resist an adversarial process. Layer an OS sandbox for that.
+
+### install-guard
+
+```
+gospelo-identity install-guard [--dir DIR] [--tools gh,git]
+```
+
+Writes shim executables into `DIR` (default `~/.gospelo-identity/bin`) and prints the line to add to your shell rc.
+
+- `--tools` (default `gh`) — comma-separated tools to shadow. Shadowing `git` adds Python startup to every `git` call and a large blast radius, so opt in explicitly with `--tools gh,git` only if you want `git push` guarded. (Commit-message hygiene is handled separately by `install-commit-hook`.)
+- Before installing, the command verifies that the resolved `gospelo-identity` actually supports the `guard` subcommand, and refuses to install broken shims (e.g. when a stale build is first on `PATH`).
+
+Activate by putting the shim dir at the **front** of `PATH`:
+
+```bash
+export PATH="$HOME/.gospelo-identity/bin:$PATH"   # add to ~/.zshrc or ~/.bashrc
+command -v gh   # should print the shim path
+```
+
+| Exit code | Meaning |
+|---|---|
+| 0 | At least one shim was installed |
+| 1 | No shims installed (tool not found on `PATH`, or the resolved command lacks `guard`) |
+
+### guard
+
+```
+gospelo-identity guard --tool {gh,git} --real <path> -- <args...>
+```
+
+The runtime gate that the shims call; you do not normally run it by hand. For **write** invocations it prints a one-line status to **stderr** (read-only invocations stay silent):
+
+| Situation | stderr | Result |
+|---|---|---|
+| identity matches | `identity OK for profile '<name>'; passing through.` | real command runs |
+| identity mismatch | `BLOCKED ... fix: gospelo-identity switch <name>` | **blocked**, exit 1 |
+| directory not governed | `directory not governed by any profile; passing through.` | real command runs |
+| no / unreadable config | `no usable config; passing through ...` | real command runs |
+
+Environment variables:
+
+- `GOSPELO_IDENTITY_SKIP=1` — bypass the gate for a single call: `GOSPELO_IDENTITY_SKIP=1 gh release create ...`.
+- `GOSPELO_IDENTITY_QUIET=1` — suppress the informational stderr status lines above. A **BLOCK is always reported**, regardless of this setting.
+
+### uninstall-guard
+
+```
+gospelo-identity uninstall-guard [--dir DIR] [--tools gh,git]
+```
+
+Removes the shim files. Remember to also remove the `export PATH=...` line you added to your shell rc.
+
+---
+
+## Enforcement: commit-msg hook (strip Co-Authored-By)
+
+A global `commit-msg` hook removes every `Co-authored-by:` trailer from commit messages — the human running the commit is the accountable author. Unlike the PATH shim, the hook fires even when `git` is invoked by absolute path or by an IDE (git itself runs it), and it adds no per-call latency (it runs only at commit time).
+
+### install-commit-hook
+
+```
+gospelo-identity install-commit-hook [--dir DIR] [--force]
+```
+
+Installs a global `core.hooksPath` dispatcher in `DIR` (default `~/.gospelo-identity/git-hooks`) that strips `Co-Authored-By` on `commit-msg` and then **chains to each repository's own `.git/hooks/<name>`**, so existing hooks (husky, pre-commit, …) keep working.
+
+- If a global `core.hooksPath` is already set to a different value, the command refuses unless `--force` is given.
+- Repositories that set their **own** `core.hooksPath` (e.g. husky) override the global one; install per-repo there.
+
+| Exit code | Meaning |
+|---|---|
+| 0 | Installed |
+| 1 | A different global `core.hooksPath` already exists (re-run with `--force`) |
+| 2 | Failed to set `core.hooksPath` |
+
+### uninstall-commit-hook
+
+```
+gospelo-identity uninstall-commit-hook [--dir DIR]
+```
+
+Unsets the global `core.hooksPath` (only if it points at our dispatcher) and removes the dispatcher files.
+
+### strip-coauthors
+
+```
+gospelo-identity strip-coauthors <commit-msg-file>
+```
+
+The worker that the hook invokes; it rewrites the message file in place, removing `Co-authored-by:` lines. You normally never call this directly. Always exits 0 (it never blocks a commit on its own I/O error).

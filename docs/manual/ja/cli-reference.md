@@ -164,3 +164,107 @@ zsh の例（`PROMPT` で使う場合は `setopt PROMPT_SUBST` が必要）:
 setopt PROMPT_SUBST
 PROMPT='%F{yellow}$(gospelo-identity prompt --format=plain --show-mismatch)%f %~ %# '
 ```
+
+---
+
+## enforcement: guard（gh/git の PATH シム）
+
+guard は `PATH` 上の `gh`（任意で `git`）を小さなシム実行ファイルで**シャドウ**します。各呼び出しは `gospelo-identity guard` を経由し、**読み取り専用**コマンドはそのまま通し、**書き込み／外向き**コマンド（`git push`、`gh release/pr/repo/... create`、変更系の `gh api` など）については先にカレントディレクトリの identity チェックを行い、アクティブな git/gh identity がそのディレクトリを支配する profile と一致しない場合は書き込みを**ブロック**します（非ゼロ終了。本物のバイナリは実行されません）。
+
+設計上の制約:
+
+- **決定論的** — 純粋なパターンロジックのみ。LLM は使わない。
+- **ローカル完結** — `check` が行う `gh api user` 以上の通信は発生しない。
+- **enforcement の外では fail-open** — マッチした profile 下で identity 不一致の書き込みはブロックするが、それ以外（config 不在、config 読み取り不可、どの profile にもマッチしないディレクトリ、`GOSPELO_IDENTITY_SKIP` 設定時）は本物のコマンドをそのまま実行する。無関係な作業を壊さない。
+
+制限: PATH シムは**名前ベース**の呼び出ししか捕捉できません。絶対パス指定（`/usr/bin/git push`）はバイパスされます。シムの役割は自動化／エージェント実行中の**うっかり**誤 identity 書き込みを止めることであり、敵対的プロセスへの防御ではありません。その用途には OS サンドボックスを併用してください。
+
+### install-guard
+
+```
+gospelo-identity install-guard [--dir DIR] [--tools gh,git]
+```
+
+`DIR`（既定 `~/.gospelo-identity/bin`）にシム実行ファイルを書き出し、シェル rc に追記すべき行を表示します。
+
+- `--tools`（既定 `gh`）— シャドウ対象をカンマ区切りで指定。`git` をシャドウすると毎回の `git` 呼び出しに Python 起動が乗り影響範囲も大きいため、`git push` をガードしたい場合のみ `--tools gh,git` で明示的に有効化します（コミットメッセージの衛生は `install-commit-hook` が別途担当）。
+- インストール前に、解決された `gospelo-identity` が実際に `guard` サブコマンドを持つか検証し、壊れたシム（古いビルドが `PATH` 先頭にある場合など）のインストールを拒否します。
+
+シムディレクトリを `PATH` の**先頭**に置いて有効化します:
+
+```bash
+export PATH="$HOME/.gospelo-identity/bin:$PATH"   # ~/.zshrc や ~/.bashrc に追記
+command -v gh   # シムのパスが表示されればOK
+```
+
+| 終了コード | 意味 |
+|---|---|
+| 0 | 1つ以上のシムをインストール |
+| 1 | シム未インストール（`PATH` にツールが無い、または解決コマンドが `guard` 非対応） |
+
+### guard
+
+```
+gospelo-identity guard --tool {gh,git} --real <path> -- <args...>
+```
+
+シムが呼び出すランタイムゲート。通常は手動で実行しません。**書き込み**呼び出しでは **stderr** に1行のステータスを出力します（読み取り専用呼び出しは無音）:
+
+| 状況 | stderr | 結果 |
+|---|---|---|
+| identity 一致 | `identity OK for profile '<name>'; passing through.` | 本物のコマンドを実行 |
+| identity 不一致 | `BLOCKED ... fix: gospelo-identity switch <name>` | **ブロック**、exit 1 |
+| 未ガバナンスのディレクトリ | `directory not governed by any profile; passing through.` | 本物のコマンドを実行 |
+| config 不在／読み取り不可 | `no usable config; passing through ...` | 本物のコマンドを実行 |
+
+環境変数:
+
+- `GOSPELO_IDENTITY_SKIP=1` — 1回だけゲートをバイパス: `GOSPELO_IDENTITY_SKIP=1 gh release create ...`。
+- `GOSPELO_IDENTITY_QUIET=1` — 上記の情報ステータス行を抑制。**ブロックはこの設定に関係なく必ず表示**されます。
+
+### uninstall-guard
+
+```
+gospelo-identity uninstall-guard [--dir DIR] [--tools gh,git]
+```
+
+シムファイルを削除します。シェル rc に追記した `export PATH=...` の行も忘れずに削除してください。
+
+---
+
+## enforcement: commit-msg フック（Co-Authored-By 除去）
+
+グローバルな `commit-msg` フックが、コミットメッセージから `Co-authored-by:` トレーラ行をすべて除去します（コミットを実行する人間が責任を負う著者であるため）。PATH シムと異なり、`git` が絶対パスや IDE から呼ばれてもフックは発火します（git 自身が実行するため）。また commit 時のみ動くので毎回の呼び出しレイテンシはありません。
+
+### install-commit-hook
+
+```
+gospelo-identity install-commit-hook [--dir DIR] [--force]
+```
+
+`DIR`（既定 `~/.gospelo-identity/git-hooks`）にグローバル `core.hooksPath` ディスパッチャをインストールします。`commit-msg` で `Co-Authored-By` を除去した後、**各リポジトリ独自の `.git/hooks/<name>` にチェーン**するため、既存フック（husky, pre-commit など）も動き続けます。
+
+- グローバル `core.hooksPath` が別の値に既設の場合、`--force` なしでは拒否します。
+- **独自の** `core.hooksPath` を設定するリポジトリ（husky など）はグローバル設定を上書きします。その場合はリポジトリ単位でインストールしてください。
+
+| 終了コード | 意味 |
+|---|---|
+| 0 | インストール完了 |
+| 1 | 別のグローバル `core.hooksPath` が既設（`--force` で再実行） |
+| 2 | `core.hooksPath` の設定に失敗 |
+
+### uninstall-commit-hook
+
+```
+gospelo-identity uninstall-commit-hook [--dir DIR]
+```
+
+グローバル `core.hooksPath`（自分のディスパッチャを指している場合のみ）を解除し、ディスパッチャ関連ファイルを削除します。
+
+### strip-coauthors
+
+```
+gospelo-identity strip-coauthors <commit-msg-file>
+```
+
+フックが呼び出すワーカー。メッセージファイルをその場で書き換え、`Co-authored-by:` 行を除去します。通常は直接呼びません。常に exit 0（自身の I/O エラーでコミットをブロックしない）。

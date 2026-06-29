@@ -21,7 +21,7 @@ Intended audience:
 
 ## Design Principles
 
-- **No fallbacks**: any failure (missing config file, no glob match, external tool error) stops with an explicit error. The only exception is the `prompt` subcommand, which silently returns an empty string so it never breaks shell prompt rendering.
+- **No fallbacks**: any failure (missing config file, no glob match, external tool error) stops with an explicit error. Two deliberate exceptions: `prompt` silently returns an empty string so it never breaks prompt rendering, and the `guard` shim **fails open** (runs the real command, with a one-line stderr notice on writes) when there is no usable config or the directory is governed by no profile — so installing the shim never breaks unrelated git/gh work.
 - **Minimal dependencies**: the only PyPI dependency is `PyYAML`. `git` and `gh` are invoked as external CLIs.
 - **Directory-driven**: profile selection is anchored on "where you are working". This prevents unintended account leakage.
 

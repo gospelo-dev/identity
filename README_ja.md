@@ -58,6 +58,8 @@ PS1='$(gospelo-identity prompt --format=ps1 --show-mismatch) \w \$ '
 | `check` | 期待 vs 実状態（`git config` / `gh` CLI）を比較 |
 | `switch <profile>` | 指定 profile の git config + `gh auth switch` を一括適用 |
 | `prompt` | シェルプロンプト統合用 helper（`--format=ps1` / `plain` / `color`）|
+| `install-guard` / `uninstall-guard` | `PATH` 上の `gh`/`git` をシャドウし誤 identity 書き込みをブロック |
+| `install-commit-hook` / `uninstall-commit-hook` | `Co-Authored-By` を除去するグローバル `commit-msg` フック |
 
 詳細は [CLI リファレンス](https://github.com/gospelo-dev/identity/blob/main/docs/manual/ja/cli-reference.md) を参照。
 
@@ -114,6 +116,29 @@ default_profile: oss
 ```
 
 `paths` は glob パターン。`~` は展開され、`**` は任意階層にマッチします。複数 profile が同時にマッチした場合は最長一致が採用されます。
+
+## enforcement（任意）
+
+`check` / `switch` はあくまで助言的です。誤 identity の書き込みを実際に*ブロック*したい場合（自動化や自律エージェント実行時に有用）は guard をインストールします:
+
+```bash
+# `gh`（`git` も対象にするなら --tools gh,git）を PATH シムでシャドウし、
+# 各書き込み（gh release/pr/repo create, git push ...）の前に identity チェックを実行。
+gospelo-identity install-guard --tools gh
+export PATH="$HOME/.gospelo-identity/bin:$PATH"   # ~/.zshrc / ~/.bashrc に追記
+```
+
+これで、マッチした profile 下でアクティブアカウントが誤っている `gh release create` / `git push` は**ブロック**されます（exit 1、本物のバイナリは実行されない）。読み取り専用コマンドはそのまま通過。どの profile にもマッチしない場所や config 不在時は本物のコマンドが必ず実行され、無関係な作業を壊しません。書き込みごとのステータスは stderr に出力されます（`GOSPELO_IDENTITY_QUIET=1` で抑制、`GOSPELO_IDENTITY_SKIP=1` で 1 回バイパス）。
+
+> PATH シムは**名前ベース**の呼び出ししか捕捉しません（`/usr/bin/git push` はバイパス）。*うっかり*誤 identity 書き込みを止めるためのもので、敵対的プロセス対策ではありません。その用途には OS サンドボックスを併用してください。
+
+別途、グローバル `commit-msg` フックで全コミットメッセージから `Co-Authored-By` トレーラを除去できます（既存のリポジトリフックにチェーンします）:
+
+```bash
+gospelo-identity install-commit-hook
+```
+
+詳細と `uninstall-*` コマンドは [CLI リファレンス](https://github.com/gospelo-dev/identity/blob/main/docs/manual/ja/cli-reference.md) を参照。
 
 ## トラブルシューティング
 
