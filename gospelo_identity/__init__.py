@@ -4,4 +4,11 @@
 
 """gospelo-identity: directory-aware git/gh CLI identity guard."""
 
-__version__ = "0.1.0"
+from importlib.metadata import PackageNotFoundError, version as _version
+
+try:
+    # Single source of truth: the installed distribution's metadata
+    # (driven by pyproject.toml's version). Avoids a hardcoded duplicate.
+    __version__ = _version("gospelo-identity")
+except PackageNotFoundError:  # running from a source tree that isn't installed
+    __version__ = "0.0.0+unknown"
