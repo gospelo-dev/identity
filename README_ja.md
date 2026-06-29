@@ -18,6 +18,48 @@
 - **同時切替**: ローカル `git config user.name` / `user.email` と `gh auth switch -u <account>` を一括で（`gospelo-identity switch <profile>`）
 - **フォールバックなし**: 設定ファイル未作成や該当 profile 不在時は黙ってデフォルトを当てず、明確なエラーで停止
 
+## 仕組み
+
+カレントディレクトリが（config の path glob で）1 つの profile に解決されます。その 1 つの判定から、3 つの操作が `git` / `gh` の identity に作用します: `check` は読み取って照合、`switch` は適用、任意の `guard` シムは誤 identity の write をブロックします。
+
+```mermaid
+flowchart TB
+    CWD["カレントディレクトリ"]
+    Config[("config.yml<br/>profiles + path glob")]
+    subgraph Core["gospelo-identity"]
+        Matcher["profile 解決<br/>(dir → profile)"]
+        Check["check<br/>期待 vs 実状態を照合"]
+        Switch["switch<br/>git + gh を適用"]
+        Guard["guard (PATH シム)<br/>誤 identity の write をブロック"]
+    end
+    subgraph Ext["外部 CLI"]
+        Git["git config"]
+        Gh["gh CLI"]
+    end
+
+    CWD --> Matcher
+    Config -.->|読み取り| Matcher
+    Matcher --> Check
+    Matcher --> Switch
+    Matcher --> Guard
+    Check -.->|読み取り| Git
+    Check -.->|読み取り| Gh
+    Switch -->|書き込み| Git
+    Switch -->|書き込み| Gh
+    Guard -->|ゲート付き write| Git
+    Guard -->|ゲート付き write| Gh
+
+    classDef node fill:#FFFFFF,stroke:#666666,stroke-width:1.5px,color:#2C2C2C
+    class CWD,Config,Matcher,Check,Switch,Guard,Git,Gh node
+    style Core fill:#F0FDFA,stroke:#0D9488,color:#2C2C2C
+    style Ext fill:#F8FAFC,stroke:#94A3B8,color:#2C2C2C
+
+    linkStyle 0,2,3,4,7,8,9,10 stroke:#0D9488,stroke-width:2px
+    linkStyle 1,5,6 stroke:#9CA3AF,stroke-width:1.5px,stroke-dasharray:4 4
+```
+
+破線は読み取り専用（config の読み込み、`check` の照合）、実線は書き込みまたは write のゲートを表します。
+
 ## インストール
 
 ```bash

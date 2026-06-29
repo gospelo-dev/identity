@@ -18,6 +18,48 @@ If you contribute to OSS as `you@example.com` from `~/projects/oss/**` and to yo
 - **Switches both at once** — local `git config user.name`/`user.email` *and* `gh auth switch -u <account>` (`gospelo-identity switch <profile>`)
 - **No fallbacks**: if there is no config file or the directory does not match any profile, you get a clear error — not a silent default
 
+## How it works
+
+The current working directory resolves to a profile (via path globs in your config). From that one decision, three operations act on your `git` and `gh` identity: `check` reads and compares, `switch` applies, and the optional `guard` shim blocks wrong-identity writes.
+
+```mermaid
+flowchart TB
+    CWD["current directory"]
+    Config[("config.yml<br/>profiles + path globs")]
+    subgraph Core["gospelo-identity"]
+        Matcher["resolve profile<br/>(dir → profile)"]
+        Check["check<br/>compare expected vs actual"]
+        Switch["switch<br/>apply git + gh"]
+        Guard["guard (PATH shim)<br/>block wrong-identity writes"]
+    end
+    subgraph Ext["external CLIs"]
+        Git["git config"]
+        Gh["gh CLI"]
+    end
+
+    CWD --> Matcher
+    Config -.->|read| Matcher
+    Matcher --> Check
+    Matcher --> Switch
+    Matcher --> Guard
+    Check -.->|read| Git
+    Check -.->|read| Gh
+    Switch -->|write| Git
+    Switch -->|write| Gh
+    Guard -->|gated write| Git
+    Guard -->|gated write| Gh
+
+    classDef node fill:#FFFFFF,stroke:#666666,stroke-width:1.5px,color:#2C2C2C
+    class CWD,Config,Matcher,Check,Switch,Guard,Git,Gh node
+    style Core fill:#F0FDFA,stroke:#0D9488,color:#2C2C2C
+    style Ext fill:#F8FAFC,stroke:#94A3B8,color:#2C2C2C
+
+    linkStyle 0,2,3,4,7,8,9,10 stroke:#0D9488,stroke-width:2px
+    linkStyle 1,5,6 stroke:#9CA3AF,stroke-width:1.5px,stroke-dasharray:4 4
+```
+
+Dashed arrows are read-only (config load, `check`'s comparison); solid arrows write or gate writes.
+
 ## Installation
 
 ```bash
