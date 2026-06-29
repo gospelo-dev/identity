@@ -1,0 +1,235 @@
+# gospelo-identity - Directory-aware git/gh CLI identity guard
+# Copyright (c) 2026 NoStudio LLC. All rights reserved.
+# Licensed under the MIT License. See LICENSE.md for details.
+
+"""Tests for ``gospelo_identity.config``.
+
+Covers the public surface: ``load_config``, ``save_config``,
+``resolve_config_path``, ``Config.get_profile``. Verifies strict validation
+(no silent fallbacks).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from textwrap import dedent
+
+import pytest
+
+from gospelo_identity.config import (
+    CONFIG_PATH_ENV,
+    Config,
+    ConfigError,
+    Profile,
+    load_config,
+    resolve_config_path,
+    save_config,
+)
+
+
+# ---------------------------------------------------------------------------
+# load_config: happy path
+# ---------------------------------------------------------------------------
+
+
+def test_load_config_reads_valid_yaml(valid_config_file: Path) -> None:
+    cfg = load_config(valid_config_file)
+    assert cfg.version == "1", "version must be parsed as the string '1'"
+    assert set(cfg.profiles) == {"personal", "work"}
+    assert cfg.default_profile == "personal"
+    assert cfg.source_path == valid_config_file
+
+
+def test_load_config_parses_profile_fields(valid_config_file: Path) -> None:
+    cfg = load_config(valid_config_file)
+    p = cfg.profiles["personal"]
+    assert p.git_user_name == "Alice Example"
+    assert p.git_user_email == "alice@example.com"
+    assert p.gh_account == "alice-personal"
+    assert p.description == "Personal OSS work"
+    assert p.paths == ["~/projects/personal/**", "~/projects/oss/**"]
+
+
+def test_load_config_minimal_no_default(minimal_config_file: Path) -> None:
+    cfg = load_config(minimal_config_file)
+    assert cfg.default_profile is None, (
+        "default_profile must be None when omitted (no silent fallback)"
+    )
+    assert list(cfg.profiles) == ["solo"]
+
+
+# ---------------------------------------------------------------------------
+# load_config: error paths
+# ---------------------------------------------------------------------------
+
+
+def test_load_config_missing_file_raises(tmp_path: Path) -> None:
+    missing = tmp_path / "does-not-exist.yml"
+    with pytest.raises(ConfigError, match="not found"):
+        load_config(missing)
+
+
+def test_load_config_unsupported_version_raises(write_config) -> None:
+    bad = write_config(
+        dedent(
+            """\
+            version: "2"
+            profiles:
+              p:
+                git: {user.name: a, user.email: a@example.com}
+                gh: {account: a}
+                paths: []
+            """
+        )
+    )
+    with pytest.raises(ConfigError, match="unsupported version"):
+        load_config(bad)
+
+
+def test_load_config_missing_version_raises(write_config) -> None:
+    bad = write_config(
+        dedent(
+            """\
+            profiles:
+              p:
+                git: {user.name: a, user.email: a@example.com}
+                gh: {account: a}
+                paths: []
+            """
+        )
+    )
+    with pytest.raises(ConfigError, match="version"):
+        load_config(bad)
+
+
+def test_load_config_profile_without_git_block_raises(write_config) -> None:
+    bad = write_config(
+        dedent(
+            """\
+            version: "1"
+            profiles:
+              p:
+                gh: {account: a}
+                paths: []
+            """
+        )
+    )
+    with pytest.raises(ConfigError, match="missing required 'git'"):
+        load_config(bad)
+
+
+def test_load_config_profile_missing_user_email_raises(write_config) -> None:
+    bad = write_config(
+        dedent(
+            """\
+            version: "1"
+            profiles:
+              p:
+                git:
+                  user.name: "alice"
+                gh: {account: a}
+                paths: []
+            """
+        )
+    )
+    with pytest.raises(ConfigError, match="user.email"):
+        load_config(bad)
+
+
+def test_load_config_default_profile_unknown_raises(write_config) -> None:
+    bad = write_config(
+        dedent(
+            """\
+            version: "1"
+            profiles:
+              p:
+                git: {user.name: a, user.email: a@example.com}
+                gh: {account: a}
+                paths: []
+            default_profile: nonexistent
+            """
+        )
+    )
+    with pytest.raises(ConfigError, match="default_profile"):
+        load_config(bad)
+
+
+def test_load_config_empty_file_raises(write_config) -> None:
+    bad = write_config("")
+    with pytest.raises(ConfigError, match="empty"):
+        load_config(bad)
+
+
+def test_load_config_malformed_yaml_raises(write_config) -> None:
+    bad = write_config("version: '1'\nprofiles: [unclosed")
+    with pytest.raises(ConfigError, match="Malformed YAML"):
+        load_config(bad)
+
+
+# ---------------------------------------------------------------------------
+# Config.get_profile
+# ---------------------------------------------------------------------------
+
+
+def test_get_profile_returns_known(valid_config_file: Path) -> None:
+    cfg = load_config(valid_config_file)
+    p = cfg.get_profile("work")
+    assert isinstance(p, Profile)
+    assert p.name == "work"
+
+
+def test_get_profile_unknown_raises(valid_config_file: Path) -> None:
+    cfg = load_config(valid_config_file)
+    with pytest.raises(ConfigError, match="Unknown profile"):
+        cfg.get_profile("does-not-exist")
+
+
+# ---------------------------------------------------------------------------
+# resolve_config_path / env override
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_config_path_env_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "custom.yml"
+    monkeypatch.setenv(CONFIG_PATH_ENV, str(target))
+    assert resolve_config_path() == target
+
+
+def test_resolve_config_path_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(CONFIG_PATH_ENV, raising=False)
+    path = resolve_config_path()
+    # Defaults to ~/.config/gospelo-identity/config.yml. We assert the leaf
+    # parts only so the test stays portable across HOMEs.
+    assert path.name == "config.yml"
+    assert path.parent.name == "gospelo-identity"
+
+
+# ---------------------------------------------------------------------------
+# save_config round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_save_config_round_trip(tmp_path: Path) -> None:
+    target = tmp_path / "out.yml"
+    cfg = Config(
+        version="1",
+        profiles={
+            "p": Profile(
+                name="p",
+                description="desc",
+                git_user_name="u",
+                git_user_email="u@example.com",
+                gh_account="login",
+                paths=["~/code/**"],
+            )
+        },
+        default_profile="p",
+        source_path=target,
+    )
+    written = save_config(cfg, target)
+    assert written == target
+    reloaded = load_config(target)
+    assert reloaded.profiles["p"].git_user_email == "u@example.com"
+    assert reloaded.default_profile == "p"

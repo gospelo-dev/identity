@@ -1,0 +1,17 @@
+# gospelo-identity 設定ファイル (最小構成)
+#
+# profile が 1 つだけのシンプルな例。
+
+version: "1"
+
+profiles:
+  personal:
+    git:
+      user.name: "<your-name>"
+      user.email: "<your-email@example.com>"
+    gh:
+      account: "<your-github-login>"
+    paths:
+      - ~/projects/**
+
+default_profile: personal

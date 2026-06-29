@@ -1,0 +1,48 @@
+# gospelo-identity 設定ファイル サンプル (基本構成)
+#
+# 配置先: ~/.config/gospelo-identity/config.yml
+#         (XDG_CONFIG_HOME が設定されていればそちらを優先)
+#
+# このファイルは公開用サンプルです。実際に使う設定は
+# ~/.config/gospelo-identity/config.yml に置いてください。
+#
+# CLI でセットアップする場合: `gospelo-identity init`
+# テンプレートからコピー: `gospelo-identity init --from-template`
+#
+# 用途:
+# - 複数の GitHub アカウント (個人 / 業務) を使い分ける
+# - ディレクトリベースで「期待される profile」を定義
+# - gospelo-identity check で git/gh の現状と期待を照合
+# - gospelo-identity switch <profile> で git config + gh CLI を一括切替
+#
+# 詳細: https://github.com/gospelo-dev/identity/blob/main/docs/manual/ja/config-format.md
+
+version: "1"
+
+profiles:
+  # === 個人 OSS 開発用 ===
+  personal:
+    description: "Personal OSS work"
+    git:
+      user.name: "<your-name>"
+      user.email: "<your-email@example.com>"
+    gh:
+      account: "<your-github-login>"
+    paths:
+      - ~/projects/personal/**
+      - ~/projects/oss/**
+
+  # === 業務用 ===
+  work:
+    description: "Company work"
+    git:
+      user.name: "<your-name>"
+      user.email: "<your-email@company.com>"
+    gh:
+      account: "<your-work-github-login>"
+    paths:
+      - ~/projects/work/**
+
+# パスマッチに該当しない場合のフォールバック (任意)
+# 設定しない場合、マッチしないディレクトリでは "no profile matched" になる
+default_profile: personal

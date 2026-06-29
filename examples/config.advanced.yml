@@ -1,0 +1,56 @@
+# gospelo-identity 設定ファイル (応用構成)
+#
+# 個人 OSS / 業務 / クライアント案件など、3 つ以上の profile を使い分ける例。
+# 複数のクライアントを抱えるフリーランス想定。
+
+version: "1"
+
+profiles:
+  # === 個人 OSS ===
+  personal:
+    description: "Personal OSS and side projects"
+    git:
+      user.name: "Your Name"
+      user.email: "you@personal.example.com"
+    gh:
+      account: "yourname"
+    paths:
+      - ~/projects/personal/**
+      - ~/projects/oss/**
+      - ~/.dotfiles
+
+  # === 業務 (常勤先) ===
+  work:
+    description: "Day job at Company X"
+    git:
+      user.name: "Your Name"
+      user.email: "you@company-x.example.com"
+    gh:
+      account: "yourname-companyx"
+    paths:
+      - ~/projects/company-x/**
+
+  # === クライアント A 案件 (フリーランス) ===
+  client-a:
+    description: "Freelance client A"
+    git:
+      user.name: "Your Name"
+      user.email: "you@client-a.example.com"
+    gh:
+      account: "yourname-client-a"
+    paths:
+      - ~/projects/clients/client-a/**
+
+  # === クライアント B 案件 (フリーランス) ===
+  client-b:
+    description: "Freelance client B"
+    git:
+      user.name: "Your Name"
+      user.email: "you@client-b.example.com"
+    gh:
+      account: "yourname-client-b"
+    paths:
+      - ~/projects/clients/client-b/**
+
+# どこにもマッチしない場合のフォールバック
+default_profile: personal
