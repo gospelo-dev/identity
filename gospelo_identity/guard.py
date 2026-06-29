@@ -49,8 +49,24 @@ from .config import ConfigError, load_config
 from .matcher import resolve_profile
 
 SKIP_ENV = "GOSPELO_IDENTITY_SKIP"
+QUIET_ENV = "GOSPELO_IDENTITY_QUIET"
 DEFAULT_GUARD_DIR = "~/.gospelo-identity/bin"
 SUPPORTED_TOOLS = ("gh", "git")
+
+
+def _truthy_env(name: str) -> bool:
+    return os.environ.get(name, "").strip() not in ("", "0", "false", "False")
+
+
+def _notice(message: str) -> None:
+    """Print an informational guard notice to stderr.
+
+    Suppressed when ``GOSPELO_IDENTITY_QUIET`` is set, so scripts that pipe
+    git/gh output can silence the per-write status lines. BLOCK messages do
+    NOT go through here — a blocked write is always reported.
+    """
+    if not _truthy_env(QUIET_ENV):
+        print(f"gospelo-identity guard: {message}", file=sys.stderr)
 
 # gh subcommands -> the actions under them that WRITE / are outward-facing.
 # Conservative: anything not listed here passes through. ``api`` is handled
@@ -225,10 +241,9 @@ def guard_main() -> None:
         profile_name, mismatches = _identity_mismatches(tool, Path.cwd())
     except ConfigError:
         # No usable config -> the guard governs nothing; do not break the user.
-        print(
-            "gospelo-identity guard: no usable config; passing through "
-            "(run `gospelo-identity init` to enable enforcement).",
-            file=sys.stderr,
+        _notice(
+            "no usable config; passing through "
+            "(run `gospelo-identity init` to enable enforcement)."
         )
         _exec_real(real, cmd_argv)
         return
@@ -238,7 +253,10 @@ def guard_main() -> None:
         sys.exit(1)
 
     if profile_name is None:
-        _exec_real(real, cmd_argv)  # directory not governed by any profile
+        # Directory governed by no profile. Announce on writes so a path-glob
+        # typo (expected-to-be-governed dir that silently isn't) is visible.
+        _notice("directory not governed by any profile; passing through.")
+        _exec_real(real, cmd_argv)
         return
 
     if mismatches:
@@ -256,7 +274,10 @@ def guard_main() -> None:
         )
         sys.exit(1)
 
-    _exec_real(real, cmd_argv)  # identity matches -> allow
+    # Identity matches -> allow, with a positive confirmation so the user can
+    # see enforcement actually ran and passed (not silently skipped).
+    _notice(f"identity OK for profile {profile_name!r}; passing through.")
+    _exec_real(real, cmd_argv)
 
 
 # ---------------------------------------------------------------------------

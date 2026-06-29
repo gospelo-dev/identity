@@ -109,7 +109,7 @@ def test_write_blocked_on_mismatch(
 
 
 def test_write_allowed_on_match(
-    monkeypatch, captured_exec, isolated_config, tmp_home, mock_external
+    monkeypatch, captured_exec, isolated_config, tmp_home, mock_external, capsys
 ):
     target = tmp_home / "projects" / "personal" / "repo"
     target.mkdir(parents=True)
@@ -117,6 +117,52 @@ def test_write_allowed_on_match(
     mock_external["gh_login"] = "alice-personal"   # matches profile
     _run_guard(monkeypatch, "gh", "/usr/bin/gh", ["release", "create", "v1"])
     assert captured_exec == [("/usr/bin/gh", ["/usr/bin/gh", "release", "create", "v1"])]
+    # A matched write announces a positive confirmation on stderr.
+    assert "identity OK" in capsys.readouterr().err
+
+
+def test_readonly_is_silent(monkeypatch, captured_exec, mock_external, capsys):
+    _run_guard(monkeypatch, "gh", "/usr/bin/gh", ["pr", "view", "1"])
+    assert capsys.readouterr().err == "", "read-only must never emit notices"
+
+
+def test_write_ungoverned_dir_announces_passthrough(
+    monkeypatch, captured_exec, isolated_config, tmp_home, mock_external, capsys
+):
+    """Config valid but the cwd matches no profile (and no default): the write
+    passes through, but it must SAY SO — a silent pass-through could mask a
+    path-glob typo."""
+    monkeypatch.setattr(
+        guard, "_identity_mismatches", lambda tool, cwd: (None, [])
+    )
+    _run_guard(monkeypatch, "git", "/usr/bin/git", ["push"])
+    assert captured_exec == [("/usr/bin/git", ["/usr/bin/git", "push"])]
+    assert "not governed" in capsys.readouterr().err
+
+
+def test_quiet_env_suppresses_notice_but_not_block(
+    monkeypatch, captured_exec, isolated_config, tmp_home, mock_external, capsys
+):
+    monkeypatch.setenv(guard.QUIET_ENV, "1")
+    target = tmp_home / "projects" / "personal" / "repo"
+    target.mkdir(parents=True)
+    monkeypatch.chdir(target)
+
+    # QUIET silences the positive "identity OK" line on a matched write.
+    mock_external["gh_login"] = "alice-personal"
+    _run_guard(monkeypatch, "gh", "/usr/bin/gh", ["release", "create", "v1"])
+    assert capsys.readouterr().err == ""
+
+    # The gate sets SKIP_ENV during its own identity probe (recursion guard);
+    # clear it so this second invocation is gated rather than bypassed.
+    os.environ.pop(guard.SKIP_ENV, None)
+
+    # ...but a BLOCK is always reported, even with QUIET set.
+    mock_external["gh_login"] = "someone-else"
+    with pytest.raises(SystemExit) as exc:
+        _run_guard(monkeypatch, "gh", "/usr/bin/gh", ["release", "create", "v1"])
+    assert exc.value.code == 1
+    assert "BLOCKED" in capsys.readouterr().err
 
 
 def test_write_outside_profile_passes_through(
