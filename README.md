@@ -22,6 +22,13 @@ If you contribute to OSS as `you@example.com` from `~/projects/oss/**` and to yo
 
 The current working directory resolves to a profile (via path globs in your config). From that one decision, three operations act on your `git` and `gh` identity: `check` reads and compares, `switch` applies, and the optional `guard` shim blocks wrong-identity writes.
 
+![gospelo-identity architecture](https://raw.githubusercontent.com/gospelo-dev/identity/main/images/architecture.jpg)
+
+Dashed arrows are read-only (config load, `check`'s comparison); solid arrows write or gate writes.
+
+<details>
+<summary>Diagram source (Mermaid)</summary>
+
 ```mermaid
 flowchart TB
     CWD["current directory"]
@@ -58,7 +65,7 @@ flowchart TB
     linkStyle 1,5,6 stroke:#9CA3AF,stroke-width:1.5px,stroke-dasharray:4 4
 ```
 
-Dashed arrows are read-only (config load, `check`'s comparison); solid arrows write or gate writes.
+</details>
 
 ## Installation
 

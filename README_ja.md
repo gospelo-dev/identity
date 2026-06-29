@@ -22,6 +22,13 @@
 
 カレントディレクトリが（config の path glob で）1 つの profile に解決されます。その 1 つの判定から、3 つの操作が `git` / `gh` の identity に作用します: `check` は読み取って照合、`switch` は適用、任意の `guard` シムは誤 identity の write をブロックします。
 
+![gospelo-identity アーキテクチャ](https://raw.githubusercontent.com/gospelo-dev/identity/main/images/architecture.jpg)
+
+破線は読み取り専用（config の読み込み、`check` の照合）、実線は書き込みまたは write のゲートを表します。
+
+<details>
+<summary>図のソース (Mermaid)</summary>
+
 ```mermaid
 flowchart TB
     CWD["カレントディレクトリ"]
@@ -58,7 +65,7 @@ flowchart TB
     linkStyle 1,5,6 stroke:#9CA3AF,stroke-width:1.5px,stroke-dasharray:4 4
 ```
 
-破線は読み取り専用（config の読み込み、`check` の照合）、実線は書き込みまたは write のゲートを表します。
+</details>
 
 ## インストール
 
